@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<configuration-properties doc:name="Configuration properties" doc:id="ef4b75a5-8135-4085-b3fa-963583ced38d" file="mule-properties.yaml" />
+
+	<salesforce:sfdc-config name="Salesforce_Config_A" doc:name="Salesforce Config" doc:id="68994383-1df6-4b4b-95d8-6bbd23e50139" >
+		<salesforce:basic-connection username="${sfdc1.username}" password="${sfdc1.password}" />
+	</salesforce:sfdc-config>
+	
+	<salesforce:sfdc-config name="Salesforce_Config_B" doc:name="Salesforce Config" doc:id="673ae5db-5acb-4e08-b954-4c27eb0a05e5" >
+		<salesforce:basic-connection username="${sfdc2.username}" password="${sfdc2.password}" />
+	</salesforce:sfdc-config>
+	<flow name="sync-salesforce-calendarsFlow1" doc:id="488d386f-bda6-4077-b32a-49b29a8ab8e7" >
+		<salesforce:modified-object-listener doc:name="On Modified Event B" doc:id="7ba7f539-5838-47e1-8875-05d5b3601663" config-ref="Salesforce_Config_B" objectType="Event">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10" startDelay="5" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+		</salesforce:modified-object-listener>
+		<choice doc:name="Choice" doc:id="e741f528-11f4-47a2-888e-b8fa68b80bd6" >
+			<when expression='#[!(payload.Description contains " : Sync")]'>
+				<ee:transform doc:name="Transform Message" doc:id="8280176a-fac9-40f9-92e6-52d8bdb5529c">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+[{
+	Subject: payload.Subject,
+	Location: payload.Location,
+	IsAllDayEvent: payload.IsAllDayEvent as Boolean,
+	ActivityDateTime: payload.ActivityDateTime as DateTime,
+	DurationInMinutes: payload.DurationInMinutes as Number,
+	Description: (payload.Description default "") ++ " : Sync",
+	External_ID__c: payload.Id
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<salesforce:upsert doc:name="Upsert Event A" doc:id="18b8672c-9d72-4e02-9314-d6c2e735a4d8" config-ref="Salesforce_Config_A" objectType="Event" externalIdFieldName="External_ID__c"/>
+				<ee:transform doc:name="Transform Message" doc:id="f69ebb23-a76d-46f2-b5e9-6ca68f3594a4">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="06f74051-3c4d-4e9a-a706-b896777ae76f" />
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="sync-salesforce-calendarsFlow" doc:id="eef12e88-8f56-410d-bc6a-1527c205a23a" >
+		<salesforce:modified-object-listener doc:name="On Modified Event A" doc:id="2dc32ece-476b-4486-845b-1072505e0484" config-ref="Salesforce_Config_A" objectType="Event">
+			<scheduling-strategy >
+				<fixed-frequency timeUnit="SECONDS" frequency="10"/>
+			</scheduling-strategy>
+		</salesforce:modified-object-listener>
+		<choice doc:name="Choice" doc:id="1b6cade7-793c-4f49-91f5-9819988fb7f5" >
+			<when expression='#[!(payload.Description contains " : Sync")]'>
+				<ee:transform doc:name="Transform Message" doc:id="90b5d335-8f92-4f63-a393-d20fe1f8a466">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+[{
+	Subject: payload.Subject,
+	Location: payload.Location,
+	IsAllDayEvent: payload.IsAllDayEvent as Boolean,
+	ActivityDateTime: payload.ActivityDateTime as DateTime,
+	DurationInMinutes: payload.DurationInMinutes as Number,
+	Description: (payload.Description default "") ++ " : Sync",
+	External_ID__c: payload.Id
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<salesforce:upsert objectType="Event" externalIdFieldName="External_ID__c" doc:name="Upsert Event B" doc:id="8ac92cc8-2942-4937-ab8a-be33fb0f5021" config-ref="Salesforce_Config_B" />
+				<ee:transform doc:name="Transform Message" doc:id="35702e9d-bf1e-43a4-a853-644f16bdda68">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="30423a0a-0458-4d5e-a3b5-2f2f191e7f6d" />
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
